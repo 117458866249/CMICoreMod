@@ -1,20 +1,30 @@
 package dev.celestiacraft.cmi.common.block.steam_hammer;
 
-import com.simibubi.create.content.processing.AssemblyOperatorBlockItem;
+import com.simibubi.create.AllBlocks;
+import com.simibubi.create.content.kinetics.belt.BeltBlock;
+import com.simibubi.create.content.kinetics.belt.BeltSlope;
+import com.simibubi.create.content.processing.AssemblyOperatorUseContext;
+import com.simibubi.create.content.processing.basin.BasinBlock;
 import com.simibubi.create.foundation.item.TooltipHelper;
 import dev.celestiacraft.cmi.api.client.CmiLang;
 import dev.celestiacraft.cmi.config.common.SteamHammerConfig;
+import dev.celestiacraft.libs.api.client.context.TooltipContext;
+import dev.celestiacraft.libs.api.register.block.BasicBlockItem;
 import net.createmod.catnip.lang.FontHelper;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
-import javax.annotation.Nullable;
 import java.util.List;
 
 /**
@@ -86,7 +96,7 @@ import java.util.List;
  * @see FontHelper.Palette 颜色配置
  * @see CmiLang CMI 语言工具类
  */
-public class SteamHammerItem extends AssemblyOperatorBlockItem {
+public class SteamHammerItem extends BasicBlockItem {
 	public SteamHammerItem(Block block, Properties properties) {
 		super(block, properties);
 	}
@@ -102,20 +112,18 @@ public class SteamHammerItem extends AssemblyOperatorBlockItem {
 	 *   <li>支持动态参数（如蒸汽消耗量）</li>
 	 * </ol>
 	 *
-	 * @param stack   物品堆
-	 * @param level   当前世界（可能为 null）
-	 * @param tooltip Tooltip 行列表，向其中添加内容
-	 * @param flag    Tooltip 标志（普通/高级）
+	 * @param context
 	 */
 	@Override
-	public void appendHoverText(@NotNull ItemStack stack, @Nullable Level level, @NotNull List<Component> tooltip, @NotNull TooltipFlag flag) {
+	public void addTooltips(TooltipContext context) {
+		List<Component> tooltip = context.getTooltip();
 		int steamCost = SteamHammerConfig.STEAM_CONSUMPTION.get();
 
 		// "按住 [Shift] 查看详情" 提示 - 始终显示
 		// Shift 按下时文字变白，否则为灰色
 		CmiLang.isShiftDown(tooltip);
 
-		if (Screen.hasShiftDown()) {
+		if (context.isShiftDown()) {
 			tooltip.add(Component.empty());
 
 			// 使用 TooltipHelper.cutStringTextComponent 支持 _高亮_ 语法
@@ -150,5 +158,49 @@ public class SteamHammerItem extends AssemblyOperatorBlockItem {
 					1
 			));
 		}
+	}
+
+	@Override
+	public @NotNull InteractionResult place(BlockPlaceContext context) {
+		BlockPos placedOnPos = context.getClickedPos().relative(context.getClickedFace().getOpposite());
+		Level level = context.getLevel();
+		BlockState placedOnState = level.getBlockState(placedOnPos);
+
+		if (operatesOn(level, placedOnPos, placedOnState) && context.getClickedFace() == Direction.UP) {
+			if (level.getBlockState(placedOnPos.above(2)).canBeReplaced()) {
+				context = adjustContext(context, placedOnPos);
+			} else {
+				return InteractionResult.FAIL;
+			}
+		}
+
+		return super.place(context);
+	}
+
+	protected BlockPlaceContext adjustContext(BlockPlaceContext context, BlockPos placedOnPos) {
+		BlockPos up = placedOnPos.above(2);
+		return new AssemblyOperatorUseContext(
+				context.getLevel(),
+				context.getPlayer(),
+				context.getHand(),
+				context.getItemInHand(),
+				new BlockHitResult(
+						new Vec3(
+								up.getX() + 0.5D + Direction.UP.getStepX() * 0.5D,
+								up.getY() + 0.5D + Direction.UP.getStepY() * 0.5D,
+								up.getZ() + 0.5D + Direction.UP.getStepZ() * 0.5D
+						),
+						Direction.UP,
+						up,
+						false
+				)
+		);
+	}
+
+	protected boolean operatesOn(LevelReader world, BlockPos pos, BlockState placedOnState) {
+		if (AllBlocks.BELT.has(placedOnState)) {
+			return placedOnState.getValue(BeltBlock.SLOPE) == BeltSlope.HORIZONTAL;
+		}
+		return BasinBlock.isBasin(world, pos) || AllBlocks.DEPOT.has(placedOnState) || AllBlocks.WEIGHTED_EJECTOR.has(placedOnState);
 	}
 }

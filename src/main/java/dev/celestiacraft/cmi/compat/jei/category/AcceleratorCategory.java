@@ -55,7 +55,7 @@ public class AcceleratorCategory {
 						builder.addSlot(RecipeIngredientRole.OUTPUT, x, y)
 								.setBackground(CreateRecipeCategory.getRenderedSlot(chance), -1, -1)
 								.addItemStack(out.block.asItem().getDefaultInstance())
-								.addTooltipCallback((view, tooltip) -> {
+								.addRichTooltipCallback((view, tooltip) -> {
 									MutableComponent tranKey = Component.translatable(
 											"create.recipe.processing.chance",
 											chance < 0.01 ? "<1" : (int) (chance * 100)
@@ -67,7 +67,7 @@ public class AcceleratorCategory {
 										 * 如果写1就指在第一行添加Tooltip
 										 * 其它数字同理
 										 */
-										tooltip.add( tranKey);
+										tooltip.add(tranKey);
 									}
 								});
 						id++;
